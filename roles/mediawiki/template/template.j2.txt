@@ -1,0 +1,105 @@
+AWSTemplateFormatVersion: 2010-09-09
+Resources:
+{% for ASG in Resources.AutoScalingGroups %}
+  {{ASG}}:
+    Type: 'AWS::AutoScaling::AutoScalingGroup' 
+    Properties:
+      TerminationPolicies: 'OldestLaunchTemplate'
+      AvailabilityZones:
+{% for AZ in Resources.AutoScalingGroups[ASG].Properties.AvailabilityZones %}
+        - {{ AZ }}
+{% endfor %}
+      Cooldown: 300
+      HealthCheckGracePeriod: 60
+      HealthCheckType: EC2
+      DesiredCapacity: {{ DesiredCapacity[ASG].DesiredCapacity }}
+      MaxSize: {{ Resources.AutoScalingGroups[ASG].Properties.MaxSize  }}
+      MinSize: {{ DesiredCapacity[ASG].MinSize }}
+      VPCZoneIdentifier:
+{% for VPCZI in Resources.AutoScalingGroups[ASG].Properties.VPCZoneIdentifier %}
+        - {{ VPCZI }}
+{% endfor %}
+      LaunchConfigurationName: !Ref {{ Resources.AutoScalingGroups[ASG].Properties.LaunchConfigurationName }}
+      Tags:
+{% for TAG in Resources.AutoScalingGroups[ASG].Properties.Tags %}
+        - Key: {{ TAG['Key'] }}
+          Value: {{ TAG['Value'] }}
+          PropagateAtLaunch: true
+{% endfor %}
+{% endfor %}
+  
+      MetricsCollection:
+        - Granularity: 1Minute
+          Metrics:
+            - GroupDesiredCapacity
+            - GroupPendingInstances
+            - GroupStandbyInstances
+            - GroupMaxSize
+            - GroupTerminatingInstances
+            - GroupInServiceInstances
+            - GroupMinSize
+            - GroupTotalInstances
+      TerminationPolicies:
+        - Default
+{% endfor %}
+{% for SP in Resources.ScalingPolicies %}
+  {{ SP }}:
+    Type: 'AWS::AutoScaling::ScalingPolicy'
+    Properties:
+      AdjustmentType: ChangeInCapacity
+      PolicyType: StepScaling
+      StepAdjustments:
+        - ScalingAdjustment: {{Resources.ScalingPolicies[SP].Properties.ScalingAdjustment}}
+          MetricIntervalLowerBound : 0
+      AutoScalingGroupName: !Ref {{ Resources.ScalingPolicies[SP].Properties.AutoScalingGroupName }}
+{% endfor %}
+  sns :
+    Type: 'AWS::SNS::Topic'
+    Properties:
+      DisplayName: sns
+      TopicName: sns
+{% for LC in Resources.LaunchConfigurations %}
+  {{ LC }}:
+    Type: 'AWS::AutoScaling::LaunchConfiguration'
+    Properties:
+{% if Resources.LaunchConfigurations[LC].Properties.AssociatePublicIpAddress is defined %}
+      AssociatePublicIpAddress: {{Resources.LaunchConfigurations[LC].Properties.AssociatePublicIpAddress}}
+{% endif %}
+      ImageId: {{ AMI[LC] }}
+      InstanceType: {{ Resources.LaunchConfigurations[LC].Properties.InstanceType }}
+      KeyName: {{ Resources.LaunchConfigurations[LC].Properties.KeyName }}
+      IamInstanceProfile: {{ Resources.LaunchConfigurations[LC].Properties.IamInstanceProfile }}
+      InstanceMonitoring: 'true'
+      SecurityGroups:
+{% for SG in Resources.LaunchConfigurations[LC].Properties.SecurityGroups %}
+        - {{ SG }}
+{% endfor %}
+      BlockDeviceMappings:
+        - DeviceName: /dev/sda1
+          Ebs:
+            VolumeSize: '50'
+            VolumeType: gp2
+            Iops: 100
+{% endif %}
+{% for ALARM in Resources.Alarms %}
+  {{ ALARM }} :
+    Type: 'AWS::CloudWatch::Alarm'
+    Properties:
+      ActionsEnabled: 'true'
+      ComparisonOperator: {{Resources.Alarms[ALARM].Properties.ComparisonOperator}}
+      EvaluationPeriods: '1'
+      MetricName: CPUUtilization
+      Namespace: AWS/EC2
+      Period: '60'
+      Statistic: Average
+      Threshold: '{{Resources.Alarms[ALARM].Properties.Threshold}}'
+      AlarmActions:
+{% for ALARMACTION in  Resources.Alarms[ALARM].Properties.AlarmActions %}
+        - !Ref {{ ALARMACTION }}
+{% endfor %}
+      Dimensions:
+{% for DIM in Resources.Alarms[ALARM].Properties.Dimensions %}
+        - Name: {{ DIM['Name'] }}
+          Value: !Ref {{ DIM['Value'] }}
+{% endfor %}
+{%endfor%}

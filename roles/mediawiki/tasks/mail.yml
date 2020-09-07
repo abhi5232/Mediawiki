@@ -1,0 +1,23 @@
+#This roles will create the infrastructe for the environment.
+#we are uploading the cloudformation templateto s3
+
+- name: Include vars for cloudformation
+  include_vars: "{{line_item}}"
+  with_items:
+   - "vars/vars.yml"
+- name: Creating cloudformation template
+  template:
+    src: template/template.j2
+    dest: "files/mediawiki.yml"
+
+- name: Include vars for cloudformation
+  include_vars:
+    file: "vars/main.yml"
+
+- name: Create the stack
+  cloudformation:
+   stack_name: "mediawiki"
+   state: "present"
+   region: "eu-central"
+   profile: "mediawiki"
+   template_path:  "files/mediawiki.yml"

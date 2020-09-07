@@ -1,0 +1,9 @@
+---
+- name: Provision Stack
+  hosts: local
+  become: false
+  tasks:
+   - include_role: 
+       name: "{{item}}"
+     with_items:
+      - mediawiki

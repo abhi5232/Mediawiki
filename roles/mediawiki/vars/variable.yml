@@ -1,0 +1,78 @@
+---
+Resources:
+  AMI:
+   mediawikilc: ami-xxxxxxxxx
+  DesiredCapacity:
+   mediawikiasg:
+    DesiredCapacity: 1
+    MinSize: 1
+    MaxSize: 2
+  LaunchConfigurations:
+    mediawikilc:
+      Properties:
+        InstanceType: t2.large
+        KeyName: mediawiki
+        IamInstanceProfile: EC2SSMRole
+        InstanceMonitoring: 'true'
+        SecurityGroups:
+          - sg-xxxxxxxxxx
+
+          
+  AutoScalingGroups:
+
+    mediawikiasg:
+      Properties:
+        AvailabilityZones:
+          - eu-central-1a
+          - eu-central-1b
+        Cooldown: '300'
+        HealthCheckGracePeriod: '60'
+        HealthCheckType: EC2
+        MaxSize: '3'
+        MinSize: '1'
+        VPCZoneIdentifier:
+          - subnet-xxxxxxxxx
+          - subnet-xxxxxxxxxxxx
+        LaunchConfigurationName: mediawikilc
+        Tags:
+         
+          - Key: Name
+            Value: mediawiki
+
+                    
+    
+  ScalingPolicies:
+    scalingDecreaseEC2mediawikiInstance:
+      Properties:
+        AutoScalingGroupName: mediawikiasg
+        ScalingAdjustment: -1
+        MetricInterval: MetricIntervalUpperBound
+    scalingIncreaseEC2mediawikiInstance:
+      Properties:
+        AutoScalingGroupName: mediawikiasg
+        ScalingAdjustment: +1
+        MetricInterval: MetricIntervalLowerBound
+
+
+  Alarms:
+    alarmw2gomediawikiLowCPUUtilization:
+      Properties:
+        AlarmActions:
+          - w2gocsbasgsns
+          - scalingDecreaseEC2mediawikiInstance
+        Dimensions:
+          - Name: AutoScalingGroupName
+            Value: mediawikiasg
+        ComparisonOperator: LessThanOrEqualToThreshold
+        Threshold: 50.0
+    alarmw2gomediawikiHighCPUUtilization:
+      Properties:
+        AlarmActions:
+          - w2gocsbasgsns
+          - scalingDecreaseEC2mediawikiInstance
+        Dimensions:
+          - Name: AutoScalingGroupName
+            Value: mediawikiasg
+        ComparisonOperator: GreaterThanOrEqualToThreshold
+        Threshold: 70.0
+
